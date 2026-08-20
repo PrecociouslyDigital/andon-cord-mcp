@@ -41,9 +41,7 @@ pub fn decide(query: &Query, config: &Config) -> Decision {
     if !config.guard {
         return Decision::Allow;
     }
-    // Denying the andon tools while a cord is open would deadlock the agent out
-    // of `await_cord`: it could neither work nor wait.
-    if query.tool_name.as_deref().is_some_and(is_andon_tool) {
+    if query.tool_name.as_deref().is_some_and(must_stay_reachable) {
         return Decision::Allow;
     }
     let Some(cord) = board::stopping()
@@ -58,13 +56,27 @@ pub fn decide(query: &Query, config: &Config) -> Decision {
     }
 }
 
-/// Generous on purpose. The canonical name is `mcp__andon__*`, but the server
-/// can be registered under any name, and a rename that locked the agent out of
-/// its own cord would be the worst bug this tool could have.
-fn is_andon_tool(name: &str) -> bool {
-    name.starts_with("mcp__andon__")
+/// Tools that must never be denied, because denying them takes away the agent's
+/// ability to *wait* — leaving it able neither to work nor to stop properly.
+///
+/// Two kinds, and the second was learned the hard way.
+fn must_stay_reachable(name: &str) -> bool {
+    // Ours, under whatever name the server was registered as. Generous on
+    // purpose: the canonical name is `mcp__andon__*`, but a rename that locked
+    // the agent out of its own cord would be the worst bug this tool could have.
+    let ours = name.starts_with("mcp__andon__")
         || name.ends_with("pull_andon_cord")
-        || name.ends_with("await_cord")
+        || name.ends_with("await_cord");
+
+    // …and the harness's tool discovery, which is how a deferred MCP tool
+    // becomes callable in the first place. Denying it locks the agent out of
+    // `await_cord` one level up the stack, and a test that asserts the tool
+    // *name* is allowed will pass right through that gap — it checks the
+    // destination rather than the route.
+    //
+    // Safe to allow: discovery is not action. The call it discovers is still
+    // subject to the same decision.
+    ours || name == "ToolSearch"
 }
 
 fn in_scope(cord: &Cord, query: &Query, scope: Scope) -> bool {
@@ -280,6 +292,10 @@ mod tests {
             "mcp__andon__pull_andon_cord",
             // Registered under some other server name, which must still work.
             "mcp__stopline__await_cord",
+            // The route, not just the destination: when the andon tools are
+            // deferred, this is the only way they become callable at all.
+            // Denying it locked a real session out of its own cord.
+            "ToolSearch",
         ] {
             assert_eq!(
                 decide(&query(tool, "sess-a", "/repo"), &config),

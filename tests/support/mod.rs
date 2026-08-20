@@ -18,6 +18,16 @@ pub const BIN: &str = env!("CARGO_BIN_EXE_andon");
 /// metadata — the shape most clients in the wild still speak.
 const PROTOCOL: &str = "2025-06-18";
 
+/// Every version rmcp will negotiate. Real clients pick the newest they know,
+/// so testing only the comfortable one tests a path nobody takes.
+pub const KNOWN_PROTOCOLS: &[&str] = &[
+    "2024-11-05",
+    "2025-03-26",
+    "2025-06-18",
+    "2025-11-25",
+    "2026-07-28",
+];
+
 /// A state directory of its own, handed to child processes through their
 /// environment. Nothing here mutates this process's environment, so these
 /// tests are free to run in parallel.
@@ -289,10 +299,15 @@ impl Server {
 
     /// Initialize advertising whatever the test wants the client to support.
     pub fn initialize_with(&mut self, capabilities: Value) -> Value {
+        self.initialize_at(PROTOCOL, capabilities)
+    }
+
+    /// Initialize at a specific protocol version.
+    pub fn initialize_at(&mut self, protocol: &str, capabilities: Value) -> Value {
         let result = self.call(
             "initialize",
             json!({
-                "protocolVersion": PROTOCOL,
+                "protocolVersion": protocol,
                 "capabilities": capabilities,
                 "clientInfo": { "name": "andon-smoke", "version": "0" },
             }),
@@ -303,11 +318,16 @@ impl Server {
     }
 
     pub fn tools(&mut self) -> Vec<Value> {
-        let result = self.call("tools/list", json!({}), Duration::from_secs(10));
-        result["result"]["tools"]
+        self.tools_result()["tools"]
             .as_array()
             .cloned()
             .unwrap_or_default()
+    }
+
+    /// The whole `tools/list` result, envelope included — which is where the
+    /// fields a strict client validates actually live.
+    pub fn tools_result(&mut self) -> Value {
+        self.call("tools/list", json!({}), Duration::from_secs(10))["result"].clone()
     }
 }
 

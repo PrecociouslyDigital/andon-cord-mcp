@@ -7,9 +7,9 @@
 use std::time::{Duration, Instant};
 
 use rmcp::model::{
-    CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation,
-    ListToolsResult, PaginatedRequestParams, ProgressNotificationParam, ProgressToken,
-    ServerCapabilities, ServerInfo, Tool,
+    CacheScope, CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock,
+    Implementation, ListToolsResult, PaginatedRequestParams, ProgressNotificationParam,
+    ProgressToken, ServerCapabilities, ServerInfo, Tool,
 };
 use rmcp::service::{Peer, RequestContext, RoleServer};
 use rmcp::{ErrorData as McpError, ServerHandler, ServiceExt};
@@ -96,7 +96,15 @@ impl ServerHandler for Andon {
         Ok(ListToolsResult::with_all_items(vec![
             pull_tool(&Config::load().description()),
             await_tool(),
-        ]))
+        ])
+        // SEP-2549: required from protocol 2026-07-28, and clients on it reject
+        // the whole tool list when they are missing. A zero TTL is also what we
+        // actually mean — the description comes from a config file that can
+        // change at any moment, so nothing should serve a stale copy of it.
+        .with_ttl_ms(0)
+        // Derived from this user's own config, so no intermediary should hand
+        // it to anyone else.
+        .with_cache_scope(CacheScope::Private))
     }
 
     async fn call_tool(

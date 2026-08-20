@@ -185,3 +185,62 @@ fn clearing_a_cord_releases_the_agent_without_an_answer() {
     assert!(text.contains("end your turn"), "{text}");
     assert!(sandbox.cords().is_empty());
 }
+
+#[test]
+fn tools_list_satisfies_every_protocol_version_a_client_might_negotiate() {
+    // Regression: real clients negotiate the newest version they know, and from
+    // 2026-07-28 SEP-2549 makes `ttlMs` and `cacheScope` required on paginated
+    // results. Omitting them made Claude Code reject the entire tool list —
+    // "Connected · tools fetch failed" — which no test pinned to an older
+    // version could ever have caught.
+    for protocol in support::KNOWN_PROTOCOLS {
+        let sandbox = Sandbox::new(&format!("smoke-proto-{protocol}"));
+        let mut server = sandbox.serve();
+        let init = server.initialize_at(protocol, json!({}));
+        assert!(
+            init.get("error").is_none(),
+            "initialize failed at {protocol}: {init}"
+        );
+
+        let result = server.tools_result();
+        assert_eq!(
+            result["tools"].as_array().map(Vec::len),
+            Some(2),
+            "at {protocol}: {result}"
+        );
+        assert!(
+            result["ttlMs"].is_number(),
+            "ttlMs must be a number at {protocol}: {result}"
+        );
+        assert!(
+            matches!(result["cacheScope"].as_str(), Some("public" | "private")),
+            "cacheScope must be public or private at {protocol}: {result}"
+        );
+    }
+}
+
+#[test]
+fn a_cord_can_be_pulled_at_the_newest_protocol_version() {
+    // The whole loop, not just the handshake, on the version a current client
+    // actually picks.
+    let sandbox = Sandbox::new("smoke-newest");
+    let mut server = sandbox.serve();
+    let newest = support::KNOWN_PROTOCOLS.last().unwrap();
+    server.initialize_at(newest, json!({}));
+
+    let pending = server.request(
+        "tools/call",
+        json!({ "name": "pull_andon_cord", "arguments": { "report": "stuck on the newest wire" } }),
+    );
+    let id = sandbox.wait_for_cord();
+    assert!(
+        sandbox
+            .andon(&["respond", &id, "answered anyway"])
+            .status
+            .success()
+    );
+
+    let response = server.response(pending, PATIENCE);
+    assert!(response.get("error").is_none(), "{response}");
+    assert!(tool_text(&response).contains("answered anyway"));
+}
