@@ -86,8 +86,12 @@ impl Default for Config {
             description: None,
             description_file: None,
             description_append: None,
-            // Always available, needs no setup, and audible from the next room.
-            notify: vec![Notifier::Bell],
+            // Summoning is the whole job, so the default has to actually reach
+            // someone. The bell is free and instant where a terminal is in
+            // view; the desktop notification is what survives a full-screen
+            // TUI, a backgrounded window, and a server with no terminal of its
+            // own. Both are one config line to remove.
+            notify: vec![Notifier::Bell, Notifier::desktop()],
         }
     }
 }
@@ -285,11 +289,13 @@ mod tests {
         sandbox.set("ANDON_CONFIG", sandbox.dir.join("nowhere.json"));
         sandbox.set("ANDON_WEBHOOK_URL", "https://example.invalid/hook");
         let notifiers = Config::load().notify;
-        assert_eq!(notifiers.len(), 2, "the bell stays; the webhook is added");
-        assert!(matches!(
-            notifiers[1],
-            crate::notify::Notifier::Webhook { .. }
-        ));
+        assert!(
+            matches!(
+                notifiers.last(),
+                Some(crate::notify::Notifier::Webhook { .. })
+            ),
+            "the defaults stay; the webhook is added alongside them: {notifiers:?}"
+        );
     }
 
     #[test]
@@ -356,6 +362,19 @@ mod tests {
         assert_eq!(
             on_file.description(),
             "from the file\n\nSay which ticket you are on."
+        );
+    }
+
+    #[test]
+    fn the_default_summons_does_not_depend_on_anyone_watching_a_terminal() {
+        // A cord nobody notices is a cord nobody answers, which is the only way
+        // this tool can fail completely and silently.
+        let notify = Config::default().notify;
+        assert!(
+            notify
+                .iter()
+                .any(|n| matches!(n, crate::notify::Notifier::Desktop { .. })),
+            "the shipped default must reach past the terminal: {notify:?}"
         );
     }
 

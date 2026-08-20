@@ -50,6 +50,17 @@ impl Notifier {
         }
     }
 
+    /// The default desktop summons. A terminal bell is easy to miss under a
+    /// full-screen TUI — and on a stdio MCP server it rings the client's
+    /// terminal, not the human's attention — so the shipped default also raises
+    /// something the operating system puts in front of them.
+    pub fn desktop() -> Notifier {
+        Notifier::Desktop {
+            title: "🔴 Andon cord {{id}}".to_string(),
+            message: "{{report}}".to_string(),
+        }
+    }
+
     fn fire(&self, cord: &Cord) -> Result<(), String> {
         match self {
             Notifier::Bell => {

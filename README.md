@@ -171,7 +171,7 @@ needs no file at all.
 | `max_wait` | how long one blocking call holds before handing back an `await_cord` invitation |
 | `max_reentries` | how many times the agent may re-enter before the cord is abandoned |
 | `retention` | how long `archive/` keeps resolved cords; `forever` is available |
-| `notify` | see below |
+| `notify` | see below; defaults to a terminal bell **and** a desktop notification |
 
 Environment overrides, for when a file is more ceremony than it's worth:
 `ANDON_SCOPE`, `ANDON_GUARD`, `ANDON_ELICIT`, `ANDON_WEBHOOK_URL`,
@@ -207,6 +207,17 @@ one agent's reporting habits will meet another agent that sends a bare sentence.
 
 Notifiers fire concurrently. A failing notifier is logged and otherwise ignored:
 failing to summon must never fail the cord.
+
+**The default is `bell` plus `desktop`, and the second one is doing the real
+work.** A stdio MCP server rings the terminal its *client* was launched from,
+which under a full-screen TUI is precisely the signal a human is least likely to
+register — and in a container or a headless session there is no terminal at all.
+Summoning is the whole job here, so the shipped default raises something the
+operating system puts in front of you. Both are one config line to remove:
+
+```json
+{ "notify": [ { "type": "bell" } ] }
+```
 
 ### The description is the product
 
