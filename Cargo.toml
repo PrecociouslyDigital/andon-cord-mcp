@@ -1,0 +1,40 @@
+[package]
+name = "andon"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+description = "An andon cord for coding agents: stop the line and ask a human."
+repository = "https://github.com/PrecociouslyDigital/andon-cord-mcp"
+homepage = "https://github.com/PrecociouslyDigital/andon-cord-mcp"
+license = "MIT"
+readme = "README.md"
+keywords = ["mcp", "agent", "claude", "oversight", "hitl"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "andon"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.6.6", features = ["derive"] }
+rmcp = { version = "3.1.4", features = ["server", "transport-io", "elicitation"] }
+schemars = "1.0"
+serde = { version = "1.0.229", features = ["derive"] }
+# preserve_order: settings-file edits must not reorder anyone's keys.
+# float_roundtrip: a report is stored verbatim, and the default parser is a ULP
+# lossy on extreme floats.
+serde_json = { version = "1.0.151", features = ["float_roundtrip", "preserve_order"] }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "io-std", "time", "sync", "process"] }
+ureq = "3.4.0"
+
+[dev-dependencies]
+proptest = "1.11.0"
+
+[profile.release]
+# The guard runs on every tool call and ships as a static binary per machine,
+# so size and startup matter more here than compile time.
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

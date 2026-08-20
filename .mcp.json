@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "andon": {
+      "command": "andon",
+      "args": ["serve"],
+      "request_timeout_ms": 3600000
+    }
+  }
+}

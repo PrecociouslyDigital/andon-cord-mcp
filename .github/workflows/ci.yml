@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main, release]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      # The suite spawns the real binary and speaks real JSON-RPC to it, so it
+      # needs the binary built before the integration tests run.
+      - run: cargo test --all-targets
