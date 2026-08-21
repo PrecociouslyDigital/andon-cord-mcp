@@ -26,3 +26,20 @@ jobs:
       # The suite spawns the real binary and speaks real JSON-RPC to it, so it
       # needs the binary built before the integration tests run.
       - run: cargo test --all-targets
+
+  # Nothing above this job ever builds on anything but stable, so the
+  # rust-version promise in Cargo.toml would otherwise rot unnoticed.
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # Read the floor out of Cargo.toml rather than restating it, so this job
+      # cannot end up verifying a version the package no longer claims.
+      - id: msrv
+        run: echo "toolchain=$(grep '^rust-version' Cargo.toml | tr -d '" ' | cut -d= -f2)" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.msrv.outputs.toolchain }}
+      - uses: Swatinem/rust-cache@v2
+      # Compiling is the whole claim; linting and behaviour are stable's job.
+      - run: cargo check --all-targets
